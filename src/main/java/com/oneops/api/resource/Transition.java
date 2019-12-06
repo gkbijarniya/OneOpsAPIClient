@@ -1,5 +1,6 @@
 package com.oneops.api.resource;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,7 +217,7 @@ public class Transition extends APIClient {
 			if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
 				
 				response = request.get(transitionEnvUri + environmentName);
-				String envState = response.getBody().jsonPath().get("ciState");
+				String envState = response.getBody().jsonPath().getString("ciState");
 				//wait for deployment plan to generate
 				do {
 					Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
@@ -225,7 +226,7 @@ public class Transition extends APIClient {
 						String msg = String.format("Failed to commit environment due to null response");
 						throw new OneOpsClientAPIException(msg);
 					}
-					envState = response.getBody().jsonPath().get("ciState");
+					envState = response.getBody().jsonPath().getString("ciState");
 				} while(response != null && "locked".equalsIgnoreCase(envState));
 				
 				String comments = response.getBody().jsonPath().getString("comments");
@@ -546,6 +547,87 @@ public class Transition extends APIClient {
 		String msg = String.format("Failed to get bom releases for environment %s due to null response", environmentName);
 		throw new OneOpsClientAPIException(msg);
 	}
+
+	/**
+	 * Restore a specific release
+	 *
+	 * @param environmentName
+	 * @apram releaseId
+	 * @return
+	 * @throws OneOpsClientAPIException
+	 */
+	public Release restoreRelease(String environmentName, Long releaseId) throws OneOpsClientAPIException {
+		if(environmentName == null || environmentName.length() == 0) {
+			String msg = "Missing environment name to fetch details";
+			throw new OneOpsClientAPIException(msg);
+		}
+
+		if(releaseId == null) {
+			String msg = "Missing releaseId to fetch the details";
+			throw new OneOpsClientAPIException(msg);
+		}
+
+		Release latestRelease = getLatestRelease(environmentName);
+		String releaseState = latestRelease.getReleaseState();
+		if("open".equals(releaseState.toLowerCase())) {
+			String msg = String.format("Failed to restore release, release -> %s is in open state", latestRelease.getReleaseId());
+			throw new OneOpsClientAPIException(msg);
+		}
+
+		RequestSpecification request = createRequest();
+		Response response = request.post(transitionEnvUri + environmentName + IConstants.RELEASES_URI + releaseId +"/restore" );
+		if(response != null) {
+			if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
+				Map<String, Object> map = (Map<String, Object>)response.getBody().as(Map.class);
+				Object o = map.get("release");
+
+				return JsonUtil.convert(o, new TypeReference<Release>(){});
+
+			} else {
+				String msg = String.format("Failed to restore release for environment %s due to %s", environmentName, response.getStatusLine());
+				throw new OneOpsClientAPIException(msg);
+			}
+		}
+		String msg = String.format("Failed to restore releases for environment %s due to null response", environmentName);
+		throw new OneOpsClientAPIException(msg);
+	}
+
+	/**
+	 * Fetch all release for given environment
+	 *
+	 * @param environmentName
+	 * @return
+	 * @throws OneOpsClientAPIException
+	 */
+	public List<Release> listReleases(String environmentName) throws OneOpsClientAPIException {
+		if(environmentName == null || environmentName.length() == 0) {
+			String msg = "Missing environment name to fetch details";
+			throw new OneOpsClientAPIException(msg);
+		}
+
+		RequestSpecification request = createRequest();
+		Response response = request.get(transitionEnvUri + environmentName + "/timeline" );
+		if(response != null) {
+			if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
+				List<Release> releases = new ArrayList<>();
+				List<Object> timeline = (List<Object>)response.getBody().as(List.class);
+				for(Object o : timeline) {
+					if(o instanceof Map && ((Map) o).get("releaseName") != null) {
+						Release release = JsonUtil.convert(o, new TypeReference<Release>(){});
+						releases.add(release);
+					}
+				}
+
+				return releases;
+
+			} else {
+				String msg = String.format("Failed to restore release for environment %s due to %s", environmentName, response.getStatusLine());
+				throw new OneOpsClientAPIException(msg);
+			}
+		}
+		String msg = String.format("Failed to restore releases for environment %s due to null response", environmentName);
+		throw new OneOpsClientAPIException(msg);
+	}
 	
 	
 	/**
@@ -798,11 +880,11 @@ public class Transition extends APIClient {
 	 */
 	public List<CiResource> listPlatformComponents(String environmentName, String platformName) throws OneOpsClientAPIException {
 		if(environmentName == null || environmentName.length() == 0) {
-			String msg = "Missing environment name to list enviornment platform components";
+			String msg = "Missing environment name to list environment platform components";
 			throw new OneOpsClientAPIException(msg);
 		}
 		if(platformName == null || platformName.length() == 0) {
-			String msg = "Missing platform name to list enviornment platform components";
+			String msg = "Missing platform name to list environment platform components";
 			throw new OneOpsClientAPIException(msg);
 		}
 		RequestSpecification request = createRequest();
@@ -830,15 +912,15 @@ public class Transition extends APIClient {
 	 */
 	public CiResource getPlatformComponent(String environmentName, String platformName, String componentName) throws OneOpsClientAPIException {
 		if(environmentName == null || environmentName.length() == 0) {
-			String msg = "Missing environment name to get enviornment platform component details";
+			String msg = "Missing environment name to get environment platform component details";
 			throw new OneOpsClientAPIException(msg);
 		}
 		if(platformName == null || platformName.length() == 0) {
-			String msg = "Missing platform name to get enviornment platform component details";
+			String msg = "Missing platform name to get environment platform component details";
 			throw new OneOpsClientAPIException(msg);
 		}
 		if(componentName == null || componentName.length() == 0) {
-			String msg = "Missing component name to get enviornment platform component details";
+			String msg = "Missing component name to get environment platform component details";
 			throw new OneOpsClientAPIException(msg);
 		}
 		RequestSpecification request = createRequest();
@@ -847,11 +929,11 @@ public class Transition extends APIClient {
 			if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
 				return response.getBody().as(CiResource.class);
 			} else {
-				String msg = String.format("Failed to get enviornment %s platform %s component %s details due to %s", environmentName, platformName, componentName, response.getStatusLine());
+				String msg = String.format("Failed to get environment %s platform %s component %s details due to %s", environmentName, platformName, componentName, response.getStatusLine());
 				throw new OneOpsClientAPIException(msg);
 			}
 		} 
-		String msg = String.format("Failed to get enviornment %s platform %s component %s details due to null response", environmentName, platformName, componentName);
+		String msg = String.format("Failed to get environment %s platform %s component %s details due to null response", environmentName, platformName, componentName);
 		throw new OneOpsClientAPIException(msg);
 	}
 	
@@ -1194,11 +1276,11 @@ public class Transition extends APIClient {
 	 */
 	public List<CiResource> listPlatformVariables(String environmentName, String platformName) throws OneOpsClientAPIException {
 		if(environmentName == null || environmentName.length() == 0) {
-			String msg = "Missing environment name to list enviornment platform variables";
+			String msg = "Missing environment name to list environment platform variables";
 			throw new OneOpsClientAPIException(msg);
 		}
 		if(platformName == null || platformName.length() == 0) {
-			String msg = "Missing platform name to list enviornment platform variables";
+			String msg = "Missing platform name to list environment platform variables";
 			throw new OneOpsClientAPIException(msg);
 		}
 		RequestSpecification request = createRequest();
@@ -1312,7 +1394,7 @@ public class Transition extends APIClient {
 	 */
 	public List<CiResource> listGlobalVariables(String environmentName) throws OneOpsClientAPIException {
 		if(environmentName == null || environmentName.length() == 0) {
-			String msg = "Missing environment name to list enviornment variables";
+			String msg = "Missing environment name to list environment variables";
 			throw new OneOpsClientAPIException(msg);
 		}
 		RequestSpecification request = createRequest();
@@ -1440,7 +1522,41 @@ public class Transition extends APIClient {
 		String msg = String.format("Failed to disable platforms for environment with name %s due to null response", environmentName);
 		throw new OneOpsClientAPIException(msg);
 	}
-	
+
+    /**
+     * Get redundancy configuration for a given platform
+     *
+     * @param environmentName
+     * @param platformName
+     * @return
+     * @throws OneOpsClientAPIException
+     */
+	public CiResource getPlatformRedundancyConfig(String environmentName, String platformName) throws OneOpsClientAPIException {
+		if(environmentName == null || environmentName.length() == 0) {
+			String msg = "Missing environment name to get redundancy configuration";
+			throw new OneOpsClientAPIException(msg);
+		}
+
+		if(platformName == null || platformName.length() == 0) {
+			String msg = "Missing platform name to get redundancy configuration";
+			throw new OneOpsClientAPIException(msg);
+		}
+
+		RequestSpecification request = createRequest();
+		Response response = request.get(transitionEnvUri + environmentName + IConstants.PLATFORM_URI + platformName + "/edit");
+		if(response != null) {
+			if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
+				return response.getBody().as(CiResource.class);
+			} else {
+				String msg = String.format("Failed to get redundancy configuration for platform %s due to %s", platformName, response.getStatusLine());
+				throw new OneOpsClientAPIException(msg);
+			}
+		}
+
+		String msg = String.format("Failed to get redundancy configuration for platform %s due to null response", platformName);
+		throw new OneOpsClientAPIException(msg);
+	}
+
 	/**
 	 * Update redundancy configuration for a given platform
 	 * 

@@ -6,7 +6,7 @@
     <version>3</version>
   </parent>
   <artifactId>oneops-client</artifactId>
-  <version>5.0.22-SNAPSHOT</version>
+  <version>5.0.24-SNAPSHOT</version>
   <dependencies>
     <dependency>
       <groupId>com.jayway.restassured</groupId>

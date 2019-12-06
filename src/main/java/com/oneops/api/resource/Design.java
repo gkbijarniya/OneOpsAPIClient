@@ -178,9 +178,9 @@ public class Design extends APIClient {
 		if(response != null) {
 			if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
 				
-				String releaseState = response.getBody().jsonPath().get("releaseState");
+				String releaseState = response.getBody().jsonPath().getString("releaseState");
 				if("open".equals(releaseState)) {
-					int releaseId = response.getBody().jsonPath().get("releaseId");
+					long releaseId = response.getBody().jsonPath().getLong("releaseId");
 					response = request.post(designReleaseURI + releaseId + "/commit");
 					if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
 						return response.getBody().as(Release.class);
@@ -640,11 +640,11 @@ public class Design extends APIClient {
 			if(response.getStatusCode() == 200 || response.getStatusCode() == 302) {
 				return response.getBody().as(CiResource.class);
 			} else {
-				String msg = String.format("Failed to delete platform with name %s due to %s", platformName, response.getStatusLine());
+				String msg = String.format("Failed to delete component '%s' of platform '%s' due to %s: %s", componentName, platformName, response.getStatusLine(), response.getBody().asString());
 				throw new OneOpsClientAPIException(msg);
 			}
-		} 
-		String msg = String.format("Failed to delete platform with name %s due to null response", platformName);
+		}
+		String msg = String.format("Failed to delete component '%s' of platform '%s' due to null response", componentName, platformName);
 		throw new OneOpsClientAPIException(msg);
 	}
 	
